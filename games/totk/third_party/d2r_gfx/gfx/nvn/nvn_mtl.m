@@ -15204,8 +15204,11 @@ static void mesh_tasks_draw(const p_mesh_tasks *mesh) {
                 __strong id<MTLBuffer> ab; size_t ao = arena_alloc(32, &ab); uint32_t *w = (uint32_t *)((uint8_t *)ab.contents + ao); memset(w, 0, 32); w[1] = w[2] = 1;
                 id<MTLBuffer> src = (__bridge id<MTLBuffer>)source;
                 id<MTL4ComputeCommandEncoder> ce = blit_buffer(src, so, ab, ao, 4);
-                static int first_old = -1; if (first_old < 0) { const char *e = getenv("TOTK_MESH_FIRST_OLD"); first_old = e && *e && strcmp(e, "0"); }
-                enc_b_copy_buffer(ce, src, so, ab, ao, 4); enc_b_copy_buffer(ce, src, so + (first_old ? 4 : 12), ab, ao + 16, 4);
+                /* NVN2's record is {count, 0, 0, first}; OoT's terrain/grass meshes read the useful word from 1. Keep
+                   word 1 by default (word 3 removed the grass and made vertices tear), and allow the NVN2 layout with
+                   TOTK_MESH_FIRST_NEW=1. The 16-byte map is needed either way for the c0 mesh tables. */
+                static int first_new = -1; if (first_new < 0) { const char *e = getenv("TOTK_MESH_FIRST_NEW"); first_new = e && *e && strcmp(e, "0"); }
+                enc_b_copy_buffer(ce, src, so, ab, ao, 4); enc_b_copy_buffer(ce, src, so + (first_new ? 12 : 4), ab, ao + 16, 4);
                 if (!r) { g_mesh_ind_args = ab.gpuAddress + ao; g_mesh_ind_first = ab.gpuAddress + ao + 16; }
                 else { g_mesh_pre[g_mesh_pre_n].op = run[r]; g_mesh_pre[g_mesh_pre_n].sub = g_sub_serial; g_mesh_pre[g_mesh_pre_n].args = ab.gpuAddress + ao; g_mesh_pre[g_mesh_pre_n].first = ab.gpuAddress + ao + 16; g_mesh_pre_n++; } }
             enc_b_end(g_blit); g_blit = nil; } }
