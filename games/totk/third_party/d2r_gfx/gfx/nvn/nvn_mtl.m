@@ -6189,6 +6189,10 @@ static int drv_fillable(int stage, int bank, unsigned off) {
 #endif
     case 1: return off >= 0x510 && off < 0x610;
 #ifdef GAME_NS2
+    case 3: return off >= 0x670 && off < 0x770;   /* task storage-buffer table */
+    case 4: return off >= 0x770 && off < 0x870;   /* mesh storage-buffer table */
+#endif
+#ifdef GAME_NS2
     case 5: return off < 0x10 || (off >= 0x200 && off < 0x410);   /* NVN2: the workgroup counts at c0 + 4 */
 #else
     case 5: return off >= 0x200 && off < 0x410;
@@ -15196,11 +15200,12 @@ static void mesh_tasks_draw(const p_mesh_tasks *mesh) {
             rp_end(); cg_flush(); defer_fallback(); rp_flush(); upd_flush();
             g_mesh_pre_n = 0;
             for (int r = 0; r < nrun; r++) { void *source; uint64_t so;
-                if (!mtl_addr(run[r]->ind, 8, &source, &so)) { if (!r) { RED_ONCE(163, "DrawMeshTasksIndirect record at %#llx is in no memory pool: draw skipped", (unsigned long long)run[r]->ind); return; } continue; }
+                if (!mtl_addr(run[r]->ind, 16, &source, &so)) { if (!r) { RED_ONCE(163, "DrawMeshTasksIndirect record at %#llx is in no memory pool: draw skipped", (unsigned long long)run[r]->ind); return; } continue; }
                 __strong id<MTLBuffer> ab; size_t ao = arena_alloc(32, &ab); uint32_t *w = (uint32_t *)((uint8_t *)ab.contents + ao); memset(w, 0, 32); w[1] = w[2] = 1;
                 id<MTLBuffer> src = (__bridge id<MTLBuffer>)source;
                 id<MTL4ComputeCommandEncoder> ce = blit_buffer(src, so, ab, ao, 4);
-                enc_b_copy_buffer(ce, src, so, ab, ao, 4); enc_b_copy_buffer(ce, src, so + 4, ab, ao + 16, 4);
+                static int first_old = -1; if (first_old < 0) { const char *e = getenv("TOTK_MESH_FIRST_OLD"); first_old = e && *e && strcmp(e, "0"); }
+                enc_b_copy_buffer(ce, src, so, ab, ao, 4); enc_b_copy_buffer(ce, src, so + (first_old ? 4 : 12), ab, ao + 16, 4);
                 if (!r) { g_mesh_ind_args = ab.gpuAddress + ao; g_mesh_ind_first = ab.gpuAddress + ao + 16; }
                 else { g_mesh_pre[g_mesh_pre_n].op = run[r]; g_mesh_pre[g_mesh_pre_n].sub = g_sub_serial; g_mesh_pre[g_mesh_pre_n].args = ab.gpuAddress + ao; g_mesh_pre[g_mesh_pre_n].first = ab.gpuAddress + ao + 16; g_mesh_pre_n++; } }
             enc_b_end(g_blit); g_blit = nil; } }
